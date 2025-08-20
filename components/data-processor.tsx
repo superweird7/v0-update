@@ -5,11 +5,34 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import type { TransactionRow } from "@/app/page"
 import { DataTable } from "@/components/data-table"
-import { validateBICAccount, processMultipleExcelFiles, findDuplicates, findDuplicateDetails, normalizeName } from "@/lib/excel-utils"
+import { validateBICAccount, processMultipleExcelFiles, findDuplicates, normalizeName } from "@/lib/excel-utils"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger, DialogClose } from "@/components/ui/dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
+
+// Define TransactionRow interface locally to avoid import issues
+interface TransactionRow {
+  id: string
+  reference: string
+  valueDate: string
+  payerName: string
+  payerAccount: string
+  amount: string
+  currency: string
+  receiverBIC: string
+  beneficiaryAccount: string
+  beneficiaryName: string
+  remittanceInformation: string
+  detailsOfCharges: string
+  validationError?: string
+  isDuplicate?: boolean
+}
+
+// Define a type for the keys we can update
+type UpdatableTransactionFields = keyof Pick<TransactionRow, 
+  'reference' | 'valueDate' | 'payerName' | 'payerAccount' | 'amount' | 
+  'currency' | 'receiverBIC' | 'beneficiaryAccount' | 'beneficiaryName' | 
+  'remittanceInformation' | 'detailsOfCharges'>
 
 interface DataProcessorProps {
   templateFile: File
@@ -45,7 +68,7 @@ export function DataProcessor({ templateFile, dataFiles, onDataProcessed, onBack
     }
   }
 
-  const updateRow = (id: string, field: keyof TransactionRow, value: string) => {
+  const updateRow = (id: string, field: UpdatableTransactionFields, value: string) => {
     setData((prevData) =>
       prevData.map((row) => {
         if (row.id === id) {

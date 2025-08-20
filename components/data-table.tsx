@@ -4,13 +4,34 @@ import type React from "react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
-import type { TransactionRow } from "@/app/page"
+// Define TransactionRow interface locally to avoid import issues
+interface TransactionRow {
+  id: string
+  reference: string
+  valueDate: string
+  payerName: string
+  payerAccount: string
+  amount: string
+  currency: string
+  receiverBIC: string
+  beneficiaryAccount: string
+  beneficiaryName: string
+  remittanceInformation: string
+  detailsOfCharges: string
+  validationError?: string
+  isDuplicate?: boolean
+}
 import { useState, useRef, useEffect } from "react"
-import { useVirtualizer } from '@tanstack/react-virtual'
+
+// Define a type for the keys we can update
+type UpdatableTransactionFields = keyof Pick<TransactionRow, 
+  'reference' | 'valueDate' | 'payerName' | 'payerAccount' | 'amount' | 
+  'currency' | 'receiverBIC' | 'beneficiaryAccount' | 'beneficiaryName' | 
+  'remittanceInformation' | 'detailsOfCharges'>
 
 interface DataTableProps {
   data: TransactionRow[]
-  onUpdateRow: (id: string, field: keyof TransactionRow, value: string) => void
+  onUpdateRow: (id: string, field: UpdatableTransactionFields, value: string) => void
 }
 
 interface ContextMenuState {
@@ -18,13 +39,13 @@ interface ContextMenuState {
   x: number
   y: number
   rowId: string
-  field: keyof TransactionRow
+  field: UpdatableTransactionFields
 }
 
 interface PopupEditorState {
   visible: boolean
   rowId: string
-  field: keyof TransactionRow
+  field: UpdatableTransactionFields
   value: string
   originalValue: string
 }
@@ -47,14 +68,6 @@ export function DataTable({ data, onUpdateRow }: DataTableProps) {
   })
 
   const inputRefs = useRef<{ [key: string]: HTMLInputElement | null }>({})
-  const parentRef = useRef<HTMLDivElement>(null)
-
-  const virtualizer = useVirtualizer({
-    count: data.length,
-    getScrollElement: () => parentRef.current,
-    estimateSize: () => 78, // Approximate row height (64px + padding)
-    overscan: 5,
-  })
 
   useEffect(() => {
     const handleClickOutside = () => {
@@ -80,7 +93,7 @@ export function DataTable({ data, onUpdateRow }: DataTableProps) {
     }
   }, [popupEditor.visible])
 
-  const handleContextMenu = (e: React.MouseEvent, rowId: string, field: keyof TransactionRow) => {
+  const handleContextMenu = (e: React.MouseEvent, rowId: string, field: UpdatableTransactionFields) => {
     e.preventDefault()
     setContextMenu({
       visible: true,
@@ -94,7 +107,7 @@ export function DataTable({ data, onUpdateRow }: DataTableProps) {
   const handleEdit = () => {
     const row = data.find((r) => r.id === contextMenu.rowId)
     if (row) {
-      const currentValue = row[contextMenu.field] as string
+      const currentValue = String(row[contextMenu.field] || "")
       setPopupEditor({
         visible: true,
         rowId: contextMenu.rowId,
@@ -115,8 +128,8 @@ export function DataTable({ data, onUpdateRow }: DataTableProps) {
     setPopupEditor((prev) => ({ ...prev, visible: false }))
   }
 
-  const getFieldLabel = (field: keyof TransactionRow): string => {
-    const labels: Record<keyof TransactionRow, string> = {
+  const getFieldLabel = (field: UpdatableTransactionFields): string => {
+    const labels: Record<UpdatableTransactionFields, string> = {
       reference: "Reference",
       valueDate: "Value Date",
       payerName: "Payer Name",
@@ -128,17 +141,12 @@ export function DataTable({ data, onUpdateRow }: DataTableProps) {
       beneficiaryName: "Beneficiary Name",
       remittanceInformation: "Remittance Information",
       detailsOfCharges: "Details of Charges",
-      id: "ID",
-      validationError: "Validation Error",
-      isDuplicate: "Is Duplicate",
     }
     return labels[field] || field
   }
 
-  const virtualRows = virtualizer.getVirtualItems()
-
   return (
-    <div ref={parentRef} className="overflow-auto border-2 rounded-lg relative h-[600px] w-full">
+    <div className="overflow-auto border-2 rounded-lg relative h-[600px] w-full">
       <table className="w-full text-lg table-auto">
         <thead className="bg-gray-100 sticky top-0 z-10 border-b-2">
           <tr>
@@ -155,139 +163,126 @@ export function DataTable({ data, onUpdateRow }: DataTableProps) {
             <th className="p-6 text-left font-semibold w-1/12 text-lg">Charges</th>
           </tr>
         </thead>
-        <tbody
-          style={{
-            height: `${virtualizer.getTotalSize()}px`,
-            position: 'relative',
-          }}
-        >
-          {virtualRows.map((virtualRow) => {
-            const row = data[virtualRow.index]
-            return (
-              <tr
-                key={row.id}
-                data-index={virtualRow.index}
-                ref={virtualizer.measureElement}
-                className={`border-t-2 absolute w-full ${row.isDuplicate ? "bg-yellow-100 border-yellow-200" : row.validationError ? "bg-red-100 border-red-200" : virtualRow.index % 2 === 0 ? "bg-white" : "bg-gray-25"}`}
-                style={{
-                  transform: `translateY(${virtualRow.start}px)`,
-                }}
-              >
-                <td className="p-6 border-r-2">
-                  <div className="flex items-center gap-1">
-                    <Input
-                      ref={(el) => { inputRefs.current[`${row.id}-reference`] = el }}
-                      value={row.reference}
-                      onChange={(e) => onUpdateRow(row.id, "reference", e.target.value)}
-                      onContextMenu={(e) => handleContextMenu(e, row.id, "reference")}
-                      className="text-lg h-12 w-full font-medium"
-                      readOnly
-                    />
-                  </div>
-                </td>
-                <td className="p-6 border-r-2">
+        <tbody>
+          {data.map((row, index) => (
+            <tr
+              key={row.id}
+              className={`border-t-2 ${row.isDuplicate ? "bg-yellow-100 border-yellow-200" : row.validationError ? "bg-red-100 border-red-200" : index % 2 === 0 ? "bg-white" : "bg-gray-25"}`}
+            >
+              <td className="p-6 border-r-2">
+                <div className="flex items-center gap-1">
                   <Input
-                    ref={(el) => { inputRefs.current[`${row.id}-valueDate`] = el }}
-                    value={row.valueDate}
-                    onChange={(e) => onUpdateRow(row.id, "valueDate", e.target.value)}
-                    onContextMenu={(e) => handleContextMenu(e, row.id, "valueDate")}
+                    ref={(el) => { inputRefs.current[`${row.id}-reference`] = el }}
+                    value={row.reference}
+                    onChange={(e) => onUpdateRow(row.id, "reference", e.target.value)}
+                    onContextMenu={(e) => handleContextMenu(e, row.id, "reference")}
                     className="text-lg h-12 w-full font-medium"
                     readOnly
                   />
-                </td>
-                <td className="p-6 border-r-2">
+                </div>
+              </td>
+              <td className="p-6 border-r-2">
+                <Input
+                  ref={(el) => { inputRefs.current[`${row.id}-valueDate`] = el }}
+                  value={row.valueDate}
+                  onChange={(e) => onUpdateRow(row.id, "valueDate", e.target.value)}
+                  onContextMenu={(e) => handleContextMenu(e, row.id, "valueDate")}
+                  className="text-lg h-12 w-full font-medium"
+                  readOnly
+                />
+              </td>
+              <td className="p-6 border-r-2">
+                <Input
+                  ref={(el) => { inputRefs.current[`${row.id}-payerName`] = el }}
+                  value={row.payerName}
+                  onChange={(e) => onUpdateRow(row.id, "payerName", e.target.value)}
+                  onContextMenu={(e) => handleContextMenu(e, row.id, "payerName")}
+                  className="text-lg h-12 w-full font-medium"
+                />
+              </td>
+              <td className="p-6 border-r-2">
+                <Input
+                  ref={(el) => { inputRefs.current[`${row.id}-payerAccount`] = el }}
+                  value={row.payerAccount}
+                  onChange={(e) => onUpdateRow(row.id, "payerAccount", e.target.value)}
+                  onContextMenu={(e) => handleContextMenu(e, row.id, "payerAccount")}
+                  className="text-lg h-12 w-full font-medium"
+                />
+              </td>
+              <td className="p-6 border-r-2">
+                <Input
+                  ref={(el) => { inputRefs.current[`${row.id}-amount`] = el }}
+                  type="number"
+                  value={row.amount}
+                  onChange={(e) => onUpdateRow(row.id, "amount", e.target.value)}
+                  onContextMenu={(e) => handleContextMenu(e, row.id, "amount")}
+                  className="text-lg h-12 w-full font-medium"
+                />
+              </td>
+              <td className="p-6 border-r-2">
+                <Input
+                  ref={(el) => { inputRefs.current[`${row.id}-currency`] = el }}
+                  value={row.currency}
+                  onContextMenu={(e) => handleContextMenu(e, row.id, "currency")}
+                  className="text-lg h-12 w-full bg-gray-100 font-medium"
+                  readOnly
+                />
+              </td>
+              <td className="p-6 border-r-2">
+                <Input
+                  ref={(el) => { inputRefs.current[`${row.id}-receiverBIC`] = el }}
+                  value={row.receiverBIC}
+                  onChange={(e) => onUpdateRow(row.id, "receiverBIC", e.target.value)}
+                  onContextMenu={(e) => handleContextMenu(e, row.id, "receiverBIC")}
+                  className="text-lg h-12 w-full font-medium"
+                />
+              </td>
+              <td className="p-6 border-r-2">
+                <div className="relative">
                   <Input
-                    ref={(el) => { inputRefs.current[`${row.id}-payerName`] = el }}
-                    value={row.payerName}
-                    onChange={(e) => onUpdateRow(row.id, "payerName", e.target.value)}
-                    onContextMenu={(e) => handleContextMenu(e, row.id, "payerName")}
-                    className="text-lg h-12 w-full font-medium"
+                    ref={(el) => { inputRefs.current[`${row.id}-beneficiaryName`] = el }}
+                    value={row.beneficiaryName}
+                    onChange={(e) => onUpdateRow(row.id, "beneficiaryName", e.target.value)}
+                    onContextMenu={(e) => handleContextMenu(e, row.id, "beneficiaryName")}
+                    className={`text-lg h-12 w-full font-medium ${row.beneficiaryName.length > 32 ? "border-red-500 bg-red-50" : ""}`}
+                    maxLength={32}
                   />
-                </td>
-                <td className="p-6 border-r-2">
-                  <Input
-                    ref={(el) => { inputRefs.current[`${row.id}-payerAccount`] = el }}
-                    value={row.payerAccount}
-                    onChange={(e) => onUpdateRow(row.id, "payerAccount", e.target.value)}
-                    onContextMenu={(e) => handleContextMenu(e, row.id, "payerAccount")}
-                    className="text-lg h-12 w-full font-medium"
-                  />
-                </td>
-                <td className="p-6 border-r-2">
-                  <Input
-                    ref={(el) => { inputRefs.current[`${row.id}-amount`] = el }}
-                    type="number"
-                    value={row.amount}
-                    onChange={(e) => onUpdateRow(row.id, "amount", e.target.value)}
-                    onContextMenu={(e) => handleContextMenu(e, row.id, "amount")}
-                    className="text-lg h-12 w-full font-medium"
-                  />
-                </td>
-                <td className="p-6 border-r-2">
-                  <Input
-                    ref={(el) => { inputRefs.current[`${row.id}-currency`] = el }}
-                    value={row.currency}
-                    onContextMenu={(e) => handleContextMenu(e, row.id, "currency")}
-                    className="text-lg h-12 w-full bg-gray-100 font-medium"
-                    readOnly
-                  />
-                </td>
-                <td className="p-6 border-r-2">
-                  <Input
-                    ref={(el) => { inputRefs.current[`${row.id}-receiverBIC`] = el }}
-                    value={row.receiverBIC}
-                    onChange={(e) => onUpdateRow(row.id, "receiverBIC", e.target.value)}
-                    onContextMenu={(e) => handleContextMenu(e, row.id, "receiverBIC")}
-                    className="text-lg h-12 w-full font-medium"
-                  />
-                </td>
-                <td className="p-6 border-r-2">
-                  <div className="relative">
-                    <Input
-                      ref={(el) => { inputRefs.current[`${row.id}-beneficiaryName`] = el }}
-                      value={row.beneficiaryName}
-                      onChange={(e) => onUpdateRow(row.id, "beneficiaryName", e.target.value)}
-                      onContextMenu={(e) => handleContextMenu(e, row.id, "beneficiaryName")}
-                      className={`text-lg h-12 w-full font-medium ${row.beneficiaryName.length > 32 ? "border-red-500 bg-red-50" : ""}`}
-                      maxLength={32}
-                    />
-                    {row.beneficiaryName.length > 30 && (
-                      <span className="text-sm text-gray-600 absolute -bottom-6 right-0 font-medium">
-                        {row.beneficiaryName.length}/32
-                      </span>
-                    )}
-                  </div>
-                </td>
-                <td className="p-6 border-r-2">
-                  <Input
-                    ref={(el) => { inputRefs.current[`${row.id}-beneficiaryAccount`] = el }}
-                    value={row.beneficiaryAccount}
-                    onChange={(e) => onUpdateRow(row.id, "beneficiaryAccount", e.target.value)}
-                    onContextMenu={(e) => handleContextMenu(e, row.id, "beneficiaryAccount")}
-                    className="text-lg h-12 w-full font-medium"
-                  />
-                </td>
-                <td className="p-6 border-r-2">
-                  <Input
-                    ref={(el) => { inputRefs.current[`${row.id}-remittanceInformation`] = el }}
-                    value={row.remittanceInformation}
-                    onChange={(e) => onUpdateRow(row.id, "remittanceInformation", e.target.value)}
-                    onContextMenu={(e) => handleContextMenu(e, row.id, "remittanceInformation")}
-                    className="text-lg h-12 w-full font-medium"
-                  />
-                </td>
-                <td className="p-6">
-                  <Input
-                    ref={(el) => { inputRefs.current[`${row.id}-detailsOfCharges`] = el }}
-                    value={row.detailsOfCharges}
-                    onContextMenu={(e) => handleContextMenu(e, row.id, "detailsOfCharges")}
-                    className="text-lg h-12 w-full bg-gray-100 font-medium"
-                    readOnly
-                  />
-                </td>
-              </tr>
-            )
-          })}
+                  {row.beneficiaryName.length > 30 && (
+                    <span className="text-sm text-gray-600 absolute -bottom-6 right-0 font-medium">
+                      {row.beneficiaryName.length}/32
+                    </span>
+                  )}
+                </div>
+              </td>
+              <td className="p-6 border-r-2">
+                <Input
+                  ref={(el) => { inputRefs.current[`${row.id}-beneficiaryAccount`] = el }}
+                  value={row.beneficiaryAccount}
+                  onChange={(e) => onUpdateRow(row.id, "beneficiaryAccount", e.target.value)}
+                  onContextMenu={(e) => handleContextMenu(e, row.id, "beneficiaryAccount")}
+                  className="text-lg h-12 w-full font-medium"
+                />
+              </td>
+              <td className="p-6 border-r-2">
+                <Input
+                  ref={(el) => { inputRefs.current[`${row.id}-remittanceInformation`] = el }}
+                  value={row.remittanceInformation}
+                  onChange={(e) => onUpdateRow(row.id, "remittanceInformation", e.target.value)}
+                  onContextMenu={(e) => handleContextMenu(e, row.id, "remittanceInformation")}
+                  className="text-lg h-12 w-full font-medium"
+                />
+              </td>
+              <td className="p-6">
+                <Input
+                  ref={(el) => { inputRefs.current[`${row.id}-detailsOfCharges`] = el }}
+                  value={row.detailsOfCharges}
+                  onContextMenu={(e) => handleContextMenu(e, row.id, "detailsOfCharges")}
+                  className="text-lg h-12 w-full bg-gray-100 font-medium"
+                  readOnly
+                />
+              </td>
+            </tr>
+          ))}
         </tbody>
       </table>
 
