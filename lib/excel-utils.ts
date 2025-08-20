@@ -1,5 +1,5 @@
 import * as XLSX from "xlsx"
-import type { TransactionRow } from "@/app/page"
+import type { TransactionRow } from "@/lib/types"
 
 // Bank mapping with Arabic names and BIC codes
 export const BANK_MAPPING: Record<string, string[]> = {
